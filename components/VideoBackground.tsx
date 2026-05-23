@@ -8,6 +8,15 @@ gsap.registerPlugin(ScrollTrigger);
 
 const PLACEHOLDER_VIDEO_SRC = "/videos/MyRender.mp4";
 
+// Lerp factor — fraction of the remaining delta we cover each frame.
+// 0.18 = ~5 frames to feel "caught up" on a fast scroll, smooth enough to absorb
+// stepped wheel inputs without feeling laggy. Tune between 0.12 (smoother) and 0.3 (snappier).
+const LERP = 0.18;
+
+// Stop the RAF loop once we're within this many seconds of the target.
+// 0.005s is well below a 60fps frame budget — no visible drift.
+const CONVERGE_EPSILON = 0.005;
+
 export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -15,46 +24,64 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
     const video = videoRef.current;
     if (!video) return;
 
-    // Honour the user's OS-level reduced-motion preference: skip the scrub entirely
-    // and just show the first frame. Saves the per-frame seek cost on low-end devices too.
+    // Respect OS-level reduced-motion: show the first frame, skip the scrub entirely.
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
       const showFirstFrame = () => {
         try {
           video.currentTime = 0;
         } catch {
-          /* buffered range not ready yet */
+          /* buffered range not ready — first frame paints when it is */
         }
       };
-      if (video.readyState >= 2) showFirstFrame();
-      else video.addEventListener("loadeddata", showFirstFrame, { once: true });
-      return () => video.removeEventListener("loadeddata", showFirstFrame);
+      if (video.readyState >= 1 /* HAVE_METADATA */) showFirstFrame();
+      else video.addEventListener("loadedmetadata", showFirstFrame, { once: true });
+      return () => video.removeEventListener("loadedmetadata", showFirstFrame);
     }
 
     let trigger: ScrollTrigger | undefined;
     let cancelled = false;
 
-    // Coalesce seek requests into one per animation frame. Without this, fast wheel
-    // events could queue up multiple `currentTime` writes per frame — each one forces
-    // a decode and competes with paint for the main thread.
-    let pendingTime: number | null = null;
+    // ── Decoupled scroll → render pipeline ──────────────────────────────────
+    //
+    // GSAP's onUpdate ONLY mutates `targetTime` (a plain number — cheap, no
+    // layout/paint work). A separate rAF loop reads `targetTime` once per
+    // frame, lerps `smoothedTime` toward it, and writes to `video.currentTime`.
+    //
+    // This means:
+    //   1. Fast scroll wheels / trackpads can't queue up multiple seeks per frame.
+    //   2. Stepped inputs feel smooth because the lerp absorbs the gap.
+    //   3. Idle scrolls cost zero — RAF self-suspends on convergence.
+    let targetTime = 0;
+    let smoothedTime = 0;
     let rafId: number | null = null;
-    const flushSeek = () => {
+
+    const tick = () => {
       rafId = null;
-      if (pendingTime === null) return;
-      try {
-        video.currentTime = pendingTime;
-      } catch {
-        // Buffered range hasn't reached target yet — next scroll tick will retry.
+      const delta = targetTime - smoothedTime;
+      if (Math.abs(delta) < CONVERGE_EPSILON) {
+        smoothedTime = targetTime;
+        try {
+          video.currentTime = smoothedTime;
+        } catch {
+          /* buffered range not ready — next scroll tick will retry */
+        }
+        return; // suspend RAF until next onUpdate wakes it
       }
-      pendingTime = null;
-    };
-    const queueSeek = (target: number) => {
-      pendingTime = target;
-      if (rafId === null) rafId = requestAnimationFrame(flushSeek);
+      smoothedTime += delta * LERP;
+      try {
+        video.currentTime = smoothedTime;
+      } catch {
+        /* buffered range not ready — keep looping; the value will catch up */
+      }
+      rafId = requestAnimationFrame(tick);
     };
 
-    const setupScrub = () => {
+    const ensureRunning = () => {
+      if (rafId === null) rafId = requestAnimationFrame(tick);
+    };
+
+    const initScrub = () => {
       if (cancelled) return;
       const duration = video.duration;
       if (!Number.isFinite(duration) || duration <= 0) return;
@@ -62,38 +89,32 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
       video.pause();
       trigger?.kill();
 
+      // Seed the smoothed value so we don't lerp from 0 on remount.
+      smoothedTime = video.currentTime;
+      targetTime = smoothedTime;
+
       trigger = ScrollTrigger.create({
         start: 0,
         end: "max",
-        scrub: true, // GSAP's ticker already runs on rAF; we add a second rAF gate below to dedupe seeks.
+        scrub: true,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          const target = duration * self.progress;
-          // Skip imperceptible deltas so we don't seek every frame when the user idles.
-          if (Math.abs(video.currentTime - target) > 0.04) {
-            queueSeek(target);
-          }
+          // Hot path: just a number write + maybe a rAF schedule. No DOM work here.
+          targetTime = duration * self.progress;
+          ensureRunning();
         },
       });
 
-      // Force a recompute after layout has fully settled.
+      // Recompute layout-dependent measurements once everything has settled.
       requestAnimationFrame(() => ScrollTrigger.refresh());
     };
 
-    const init = () => {
-      if (video.readyState >= 2 /* HAVE_CURRENT_DATA */ && Number.isFinite(video.duration)) {
-        setupScrub();
-      } else {
-        video.addEventListener("loadeddata", setupScrub, { once: true });
-      }
-    };
-
-    // Wait for window load — fonts, images, and the rest of the document
-    // need to be measured before ScrollTrigger can map scroll → video time.
-    if (document.readyState === "complete") {
-      init();
+    // Only initialize after the browser knows the video's duration.
+    // HAVE_METADATA (readyState 1) is enough — no need to wait for HAVE_CURRENT_DATA.
+    if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
+      initScrub();
     } else {
-      window.addEventListener("load", init, { once: true });
+      video.addEventListener("loadedmetadata", initScrub, { once: true });
     }
 
     const onResize = () => ScrollTrigger.refresh();
@@ -104,19 +125,23 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
       trigger?.kill();
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("load", init);
-      video.removeEventListener("loadeddata", setupScrub);
+      video.removeEventListener("loadedmetadata", initScrub);
     };
   }, [src]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      style={{ willChange: "transform", transform: "translateZ(0)" }}
+    >
       <video
         ref={videoRef}
         src={src}
         muted
         playsInline
+        loop={false}
         preload="auto"
+        disablePictureInPicture
         disableRemotePlayback
         className="h-full w-full object-cover blur-[2px] brightness-[0.55] saturate-[1.1]"
       />
