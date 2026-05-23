@@ -52,6 +52,29 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
       return () => video.removeEventListener("loadedmetadata", showFirstFrame);
     }
 
+    // ── Mobile branch: skip GSAP entirely ────────────────────────────────────
+    //
+    // iOS Safari crashes (memory overflow) when forced to seek a video on every
+    // scroll frame — each scrub triggers a decode and accumulates GPU buffers
+    // faster than the OS can reclaim them. Phones get a plain autoplay loop
+    // instead: same visual, one decode pipeline that the OS already optimizes.
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    if (isMobile) {
+      video.loop = true;
+      video.muted = true; // required for autoplay on iOS / Android Chrome
+      const tryPlay = () => {
+        const p = video.play();
+        if (p && typeof p.catch === "function") {
+          // Autoplay can still be blocked (very-low-power mode, etc.). Silent
+          // failure is fine — the first frame still paints and looks intentional.
+          p.catch(() => {});
+        }
+      };
+      if (video.readyState >= 2 /* HAVE_CURRENT_DATA */) tryPlay();
+      else video.addEventListener("loadeddata", tryPlay, { once: true });
+      return () => video.removeEventListener("loadeddata", tryPlay);
+    }
+
     let trigger: ScrollTrigger | undefined;
     let cancelled = false;
 

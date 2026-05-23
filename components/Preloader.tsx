@@ -97,18 +97,24 @@ export function Preloader({ visible, photos = [] }: PreloaderProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="glass-panel fixed inset-0 z-[100] overflow-hidden"
+          // iOS Safari memory note: backdrop-filter is the most expensive piece of
+          // .glass-panel. We gate it behind md: so phones get a flat opaque background
+          // (no GPU surface for blur), and only desktop pays for the glass effect.
+          // transform-gpu + translateZ(0) forces this overlay onto its own compositor
+          // layer so the painter doesn't reflow the page underneath while it's mounted.
+          className="fixed inset-0 z-[100] overflow-hidden bg-blue-950 transform-gpu md:glass-panel"
+          style={{ transform: "translateZ(0)" }}
           aria-busy="true"
           role="status"
         >
-          {/* Deep-blue base sits behind the glass tint to keep the screen opaque. */}
-          <div className="absolute inset-0 bg-blue-950/85" />
+          {/* Deep-blue base over the glass tint to keep desktop opaque (no-op on mobile). */}
+          <div className="absolute inset-0 hidden bg-blue-950/70 md:block" />
 
-          {/* Centred ambient glow */}
+          {/* Centred ambient glow — radial-gradient is cheap, fine on both. */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(56,113,232,0.32),transparent_55%)]" />
 
-          {/* ── Photo mosaic ─────────────────────────────────────────────── */}
-          {/* Desktop: scattered absolute tiles, gentle group drift. */}
+          {/* Photo mosaic: desktop only. Mobile gets nothing here — saves ~9
+              decoded images + 8 GPU-composited tiles + a continuous group transform. */}
           <motion.div
             className="pointer-events-none absolute inset-0 hidden md:block"
             animate={{ x: [0, 8, -6, 0], y: [0, -4, 6, 0] }}
@@ -127,30 +133,6 @@ export function Preloader({ visible, photos = [] }: PreloaderProps) {
                   tile={tile}
                   src={photos[i]}
                   tint={TINTS[i % TINTS.length]}
-                />
-              ))}
-            </motion.div>
-          </motion.div>
-
-          {/* Mobile: dense wrapping mosaic via CSS columns, gentle breathing scale. */}
-          <motion.div
-            className="pointer-events-none absolute inset-0 px-2 py-4 opacity-70 md:hidden"
-            animate={{ scale: [1, 1.025, 1] }}
-            transition={{ duration: 10, ease: "easeInOut", repeat: Infinity }}
-            style={{ willChange: "transform" }}
-          >
-            <motion.div
-              className="columns-3 gap-2"
-              initial="hidden"
-              animate="show"
-              variants={staggerParent}
-            >
-              {Array.from({ length: 9 }).map((_, i) => (
-                <MosaicTileMobile
-                  key={`m-${i}`}
-                  src={photos[i]}
-                  tint={TINTS[i % TINTS.length]}
-                  height={i % 3 === 0 ? "h-28" : i % 3 === 1 ? "h-20" : "h-36"}
                 />
               ))}
             </motion.div>
@@ -240,39 +222,6 @@ function MosaicTile({
             sizes="20vw"
             className="object-cover"
           />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_15%,rgba(255,255,255,0.22),transparent_60%)]" />
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-function MosaicTileMobile({
-  src,
-  tint,
-  height,
-}: {
-  src?: string;
-  tint: string;
-  height: string;
-}) {
-  return (
-    <motion.div
-      variants={tileVariants}
-      className={cn(
-        "mb-2 block w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1 backdrop-blur-sm break-inside-avoid",
-        height,
-      )}
-    >
-      <div
-        className={cn(
-          "relative h-full w-full overflow-hidden rounded-lg",
-          !src && `bg-gradient-to-br ${tint}`,
-        )}
-      >
-        {src ? (
-          <Image src={src} alt="" fill sizes="33vw" className="object-cover" />
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_15%,rgba(255,255,255,0.22),transparent_60%)]" />
         )}
