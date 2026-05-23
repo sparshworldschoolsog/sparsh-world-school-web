@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -14,11 +16,22 @@ const PLACEHOLDER_VIDEO_SRC = "/videos/MyRender.mp4";
 const LERP = 0.18;
 
 // Stop the RAF loop once we're within this many seconds of the target.
-// 0.005s is well below a 60fps frame budget — no visible drift.
 const CONVERGE_EPSILON = 0.005;
+
+// Max time we wait for `canplaythrough` before revealing the site anyway.
+// Catches bad networks, mobile data, and browsers that under-fire the event.
+const PRELOADER_FAILSAFE_MS = 8000;
 
 export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+
+  // Failsafe: if `canplaythrough` doesn't fire within 8s, reveal the site anyway.
+  useEffect(() => {
+    if (isVideoLoaded) return;
+    const id = window.setTimeout(() => setIsVideoLoaded(true), PRELOADER_FAILSAFE_MS);
+    return () => window.clearTimeout(id);
+  }, [isVideoLoaded]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -47,11 +60,6 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
     // GSAP's onUpdate ONLY mutates `targetTime` (a plain number — cheap, no
     // layout/paint work). A separate rAF loop reads `targetTime` once per
     // frame, lerps `smoothedTime` toward it, and writes to `video.currentTime`.
-    //
-    // This means:
-    //   1. Fast scroll wheels / trackpads can't queue up multiple seeks per frame.
-    //   2. Stepped inputs feel smooth because the lerp absorbs the gap.
-    //   3. Idle scrolls cost zero — RAF self-suspends on convergence.
     let targetTime = 0;
     let smoothedTime = 0;
     let rafId: number | null = null;
@@ -89,7 +97,6 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
       video.pause();
       trigger?.kill();
 
-      // Seed the smoothed value so we don't lerp from 0 on remount.
       smoothedTime = video.currentTime;
       targetTime = smoothedTime;
 
@@ -99,18 +106,15 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
         scrub: true,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          // Hot path: just a number write + maybe a rAF schedule. No DOM work here.
           targetTime = duration * self.progress;
           ensureRunning();
         },
       });
 
-      // Recompute layout-dependent measurements once everything has settled.
       requestAnimationFrame(() => ScrollTrigger.refresh());
     };
 
-    // Only initialize after the browser knows the video's duration.
-    // HAVE_METADATA (readyState 1) is enough — no need to wait for HAVE_CURRENT_DATA.
+    // Initialize after the browser knows the video's duration.
     if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
       initScrub();
     } else {
@@ -130,23 +134,84 @@ export function VideoBackground({ src = PLACEHOLDER_VIDEO_SRC }: { src?: string 
   }, [src]);
 
   return (
-    <div
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      style={{ willChange: "transform", transform: "translateZ(0)" }}
-    >
-      <video
-        ref={videoRef}
-        src={src}
-        muted
-        playsInline
-        loop={false}
-        preload="auto"
-        disablePictureInPicture
-        disableRemotePlayback
-        className="h-full w-full object-cover blur-[2px] brightness-[0.55] saturate-[1.1]"
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/20 to-slate-950/70" />
-    </div>
+    <>
+      <div
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        style={{ willChange: "transform", transform: "translateZ(0)" }}
+      >
+        <video
+          ref={videoRef}
+          src={src}
+          muted
+          playsInline
+          loop={false}
+          preload="auto"
+          disablePictureInPicture
+          disableRemotePlayback
+          onCanPlayThrough={() => setIsVideoLoaded(true)}
+          className="h-full w-full object-cover blur-[2px] brightness-[0.55] saturate-[1.1]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/20 to-slate-950/70" />
+      </div>
+
+      <AnimatePresence>
+        {!isVideoLoaded && (
+          <motion.div
+            key="preloader"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-blue-950"
+            aria-busy="true"
+            role="status"
+          >
+            {/* Soft ambient glow behind the crest */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(56,113,232,0.25),transparent_60%)]" />
+
+            {/* NOTE: requires /public/logo.png. Falls back to a blank circle if missing. */}
+            <motion.div
+              animate={{ rotate: 360, scale: [1, 1.06, 1] }}
+              transition={{
+                rotate: { duration: 9, repeat: Infinity, ease: "linear" },
+                scale: { duration: 2.2, repeat: Infinity, ease: "easeInOut" },
+              }}
+              className="relative h-28 w-28 md:h-32 md:w-32"
+              style={{ willChange: "transform" }}
+            >
+              <Image
+                src="/logo.png"
+                alt="Sparsh World School"
+                width={128}
+                height={128}
+                priority
+                className="h-full w-full object-contain drop-shadow-[0_4px_20px_rgba(255,255,255,0.18)]"
+              />
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.6, ease: "easeOut" }}
+              className="font-crest mt-8 text-sm text-white/85 md:text-base"
+            >
+              Loading Sparsh World School…
+            </motion.p>
+
+            {/* Indeterminate progress bar — purely a perceived-wait sweetener. */}
+            <div className="mt-6 h-0.5 w-48 overflow-hidden rounded-full bg-white/10">
+              <motion.div
+                initial={{ x: "-100%" }}
+                animate={{ x: "200%" }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                className="h-full w-1/3 rounded-full bg-white/70"
+                style={{ willChange: "transform" }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
