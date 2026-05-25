@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Cinzel } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-import VideoBackground from "@/components/VideoBackground";
+import SiteShell from "@/components/SiteShell";
 import ChatBot from "@/components/ChatBot";
 
 const geistSans = Geist({
@@ -41,7 +41,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} antialiased`}
     >
       <body className="min-h-screen flex flex-col text-white">
-        <VideoBackground />
+        <SiteShell />
         <Header />
         <main className="relative flex-1">{children}</main>
         <ChatBot />
