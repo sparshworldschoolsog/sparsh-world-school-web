@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   title: "Sparsh World School",
   description:
     "Sparsh World School — a premium learning experience grounded in tradition and built for tomorrow.",
+  verification: {
+    google: "l9IwsYLaVgVi8gjSHLkpGirpYRmjgLZgElkcSmDZmdQ",
+  },
 };
 
 export default function RootLayout({
