@@ -3,33 +3,30 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ArrowRight, Compass, BookOpen, Trophy, Music, Palette, Microscope, Users, Globe2, Sparkles } from "lucide-react";
-import type { ComponentType } from "react";
+import { ArrowRight, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Tile {
-  label: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
   tint: string;
   span?: 1 | 2;
   /** Optional photo path under /public, e.g. "/hero/labs.jpg". Falls back to gradient placeholder. */
   src?: string;
 }
 
-// Photos from /public/hero/ are layered on top of these tiles in order
-// (left column first, then right column). Tiles without a photo show the gradient.
+// Spans drive height variance (1 = h-44, 2 = h-60). Tints are fallback gradients
+// for slots without a photo — usually unused now that /data/hero.json provides one.
 const TILES_LEFT: Tile[] = [
-  { label: "Science Labs", icon: Microscope, tint: "from-cyan-500/40 to-blue-700/40", span: 2 },
-  { label: "Sports", icon: Trophy, tint: "from-amber-400/40 to-orange-600/30" },
-  { label: "Music", icon: Music, tint: "from-fuchsia-500/40 to-purple-700/30" },
-  { label: "Library", icon: BookOpen, tint: "from-emerald-500/40 to-teal-700/30", span: 2 },
+  { tint: "from-cyan-500/40 to-blue-700/40", span: 2 },
+  { tint: "from-amber-400/40 to-orange-600/30" },
+  { tint: "from-fuchsia-500/40 to-purple-700/30" },
+  { tint: "from-emerald-500/40 to-teal-700/30", span: 2 },
 ];
 
 const TILES_RIGHT: Tile[] = [
-  { label: "Community", icon: Users, tint: "from-rose-500/40 to-pink-700/30" },
-  { label: "Arts", icon: Palette, tint: "from-indigo-500/40 to-blue-700/30", span: 2 },
-  { label: "Global", icon: Globe2, tint: "from-sky-500/40 to-cyan-700/30", span: 2 },
-  { label: "Excellence", icon: Sparkles, tint: "from-yellow-400/40 to-amber-600/30" },
+  { tint: "from-rose-500/40 to-pink-700/30" },
+  { tint: "from-indigo-500/40 to-blue-700/30", span: 2 },
+  { tint: "from-sky-500/40 to-cyan-700/30", span: 2 },
+  { tint: "from-yellow-400/40 to-amber-600/30" },
 ];
 
 function GalleryColumn({ tiles, direction }: { tiles: Tile[]; direction: "up" | "down" }) {
@@ -39,44 +36,38 @@ function GalleryColumn({ tiles, direction }: { tiles: Tile[]; direction: "up" | 
       <motion.div
         animate={{ y: direction === "up" ? ["0%", "-50%"] : ["-50%", "0%"] }}
         transition={{ duration: 38, ease: "linear", repeat: Infinity }}
-        className="flex flex-col gap-4 will-change-transform"
+        className="flex flex-col gap-3 will-change-transform"
       >
-        {items.map((tile, i) => {
-          const Icon = tile.icon;
-          return (
-            <div
-              key={`${tile.label}-${i}`}
-              className={cn(
-                "glass-panel relative flex flex-col justify-end overflow-hidden rounded-3xl p-5",
-                tile.span === 2 ? "h-56" : "h-40",
-              )}
-            >
-              {tile.src ? (
-                <>
-                  <Image
-                    src={tile.src}
-                    alt={tile.label}
-                    fill
-                    sizes="(max-width: 1024px) 50vw, 25vw"
-                    // Only the first tile in each column is above the fold — others enter via marquee scroll.
-                    priority={i === 0}
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                </>
-              ) : (
-                <>
-                  <div className={cn("absolute inset-0 bg-gradient-to-br opacity-90", tile.tint)} />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_60%)]" />
-                </>
-              )}
-              <div className="relative flex items-center gap-3 text-white">
-                <Icon size={20} className="opacity-90 drop-shadow" />
-                <span className="text-sm font-semibold tracking-wide drop-shadow">{tile.label}</span>
-              </div>
-            </div>
-          );
-        })}
+        {items.map((tile, i) => (
+          <div
+            key={i}
+            className={cn(
+              "relative overflow-hidden rounded-2xl border border-white/10",
+              tile.span === 2 ? "h-60" : "h-44",
+            )}
+          >
+            {tile.src ? (
+              <>
+                <Image
+                  src={tile.src}
+                  alt=""
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 25vw"
+                  priority={i === 0}
+                  className="object-cover"
+                />
+                {/* Subtle bottom vignette — anchors the tile against the background without
+                    drawing attention. No text overlay anymore, so this can be light. */}
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" />
+              </>
+            ) : (
+              <>
+                <div className={cn("absolute inset-0 bg-gradient-to-br opacity-90", tile.tint)} />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_60%)]" />
+              </>
+            )}
+          </div>
+        ))}
       </motion.div>
     </div>
   );
@@ -153,9 +144,9 @@ export function Hero({ photos = [] }: HeroProps) {
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.9, ease: "easeOut" }}
-          className="glass-panel relative w-full rounded-3xl p-4"
+          className="glass-panel relative w-full rounded-3xl p-3 md:p-4"
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             <GalleryColumn tiles={tilesLeft} direction="up" />
             <GalleryColumn tiles={tilesRight} direction="down" />
           </div>
