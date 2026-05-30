@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate-gallery": "node scripts/generate-gallery.mjs",
+    "predev": "node scripts/generate-gallery.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-gallery.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
