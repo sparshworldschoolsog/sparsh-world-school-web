@@ -4,6 +4,7 @@ import CoreValues from "@/components/sections/CoreValues";
 import GalleryMarquee from "@/components/sections/GalleryMarquee";
 import FacilitiesTeaser from "@/components/sections/FacilitiesTeaser";
 import ManagementHeads from "@/components/sections/ManagementHeads";
+import heroPhotos from "@/data/hero.json";
 
 const GALLERY_IDS = [
   "annual-day-2025",
@@ -15,8 +16,6 @@ const GALLERY_IDS = [
 ] as const;
 
 export default function Home() {
-  const heroPhotos = listPublicPhotos("hero");
-
   // First photo of each gallery folder becomes the marquee cover for that category.
   const marqueeCovers: Record<string, string | undefined> = Object.fromEntries(
     GALLERY_IDS.map((id) => [id, listPublicPhotos(`gallery/${id}`)[0]]),

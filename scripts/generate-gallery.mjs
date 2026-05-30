@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 /**
- * Scans /public/gallery recursively, collects every image file, and writes a
- * flat JSON array of URL-encoded paths to /data/gallery.json.
+ * Scans known media folders under /public and emits one JSON file per folder
+ * to /data, holding a flat array of URL-encoded paths suitable for next/image.
+ *
+ * Currently produces:
+ *   /public/gallery/**  →  /data/gallery.json
+ *   /public/hero/**     →  /data/hero.json
  *
  * Wired into package.json as `predev` + `prebuild` so it runs automatically
- * before `next dev` and `next build`. Staff who add a folder + photos to
- * /public/gallery only need to push — Vercel's build will pick them up.
+ * before `next dev` and `next build`. Staff who add a folder + photos under
+ * any scanned root only need to push — Vercel's build will pick them up.
+ *
+ * To scan an additional directory, just add an entry to MEDIA_SOURCES below.
  *
  * Usage:
  *   node scripts/generate-gallery.mjs
@@ -18,10 +24,15 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(ROOT, "public");
-const GALLERY_DIR = path.join(PUBLIC_DIR, "gallery");
-const OUTPUT_PATH = path.join(ROOT, "data", "gallery.json");
+const DATA_DIR = path.join(ROOT, "data");
 
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
+
+/** Each entry: scan `publicSub` under /public, write to `outFile` under /data. */
+const MEDIA_SOURCES = [
+  { publicSub: "gallery", outFile: "gallery.json" },
+  { publicSub: "hero",    outFile: "hero.json"    },
+];
 
 /** Walk a directory recursively and return all image file paths (absolute). */
 function walk(dir) {
@@ -55,17 +66,20 @@ function walk(dir) {
  */
 function toUrlPath(absPath) {
   const rel = path.relative(PUBLIC_DIR, absPath);
-  // path.sep is "\\" on Windows; URL paths always use "/".
   const segments = rel.split(path.sep).map(encodeURIComponent);
   return "/" + segments.join("/");
 }
 
-const files = walk(GALLERY_DIR).sort(); // stable order by absolute path
-const paths = files.map(toUrlPath);
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// Ensure the output directory exists.
-fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
-fs.writeFileSync(OUTPUT_PATH, JSON.stringify(paths, null, 2) + "\n", "utf8");
+for (const { publicSub, outFile } of MEDIA_SOURCES) {
+  const sourceDir = path.join(PUBLIC_DIR, publicSub);
+  const files = walk(sourceDir).sort(); // stable order by absolute path
+  const paths = files.map(toUrlPath);
 
-const rel = path.relative(ROOT, OUTPUT_PATH);
-console.log(`gallery scan: wrote ${paths.length} image paths to ${rel}`);
+  const outPath = path.join(DATA_DIR, outFile);
+  fs.writeFileSync(outPath, JSON.stringify(paths, null, 2) + "\n", "utf8");
+
+  const rel = path.relative(ROOT, outPath);
+  console.log(`media scan: ${paths.length} paths from public/${publicSub} → ${rel}`);
+}
