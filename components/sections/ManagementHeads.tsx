@@ -23,7 +23,7 @@ interface Head {
 
 const HEADS: Head[] = [
   {
-    name: "Ms Sangita Talwar",
+    name: "Ms Sangeeta Talwar",
     role: "Principal",
     qualifications: "MSc Maths, B.Ed · 6 years experience",
     slogan:
@@ -39,7 +39,7 @@ const HEADS: Head[] = [
     image: "/leader-2.jpg",
   },
   {
-    name: "Sunil Talwar",
+    name: "CA. Sunill K. Talwar",
     role: "Founder",
     qualifications: "FCA, M.Com (ABST) · 15 years experience",
     slogan:
