@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, User } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import FlipCard from "@/components/FlipCard";
 import { cn } from "@/lib/utils";
 
@@ -11,65 +12,86 @@ interface Head {
   role: string;
   qualifications: string;
   slogan: string;
-  tint: string;
-  initials: string;
+  image: string;
+  /**
+   * CSS object-position for the front-face photo. Defaults to "center 25%" which
+   * works for most headshots (head + face + shoulders visible, lower torso cropped).
+   * Override per-leader if a specific photo needs a different crop.
+   */
+  objectPosition?: string;
 }
 
-// Placeholder data — replace each entry with real details when ready.
 const HEADS: Head[] = [
   {
-    name: "Management Head 1",
-    role: "Role",
-    qualifications: "Placeholder qualifications — degrees, certifications, and years of experience.",
-    slogan: "“Placeholder slogan or guiding philosophy.”",
-    tint: "from-sky-500/40 to-blue-700/40",
-    initials: "M1",
+    name: "Ms Sunita Talwar",
+    role: "Principal",
+    qualifications: "MSc Maths, B.Ed · 6 years experience",
+    slogan:
+      "“Learning today, leading tomorrow — together we create a journey of excellence and values.”",
+    image: "/leader-1.jpg",
   },
   {
-    name: "Management Head 2",
-    role: "Role",
-    qualifications: "Placeholder qualifications — degrees, certifications, and years of experience.",
-    slogan: "“Placeholder slogan or guiding philosophy.”",
-    tint: "from-fuchsia-500/40 to-purple-700/40",
-    initials: "M2",
+    name: "Ms Shalu Raj",
+    role: "Senior Academic In-charge",
+    qualifications: "Double M.A. in Sociology & Hindi, B.Ed. · 10 years experience",
+    slogan:
+      "“A leader is one who knows the way, who goes the way, and shows the way.”",
+    image: "/leader-2.jpg",
   },
   {
-    name: "Management Head 3",
-    role: "Role",
-    qualifications: "Placeholder qualifications — degrees, certifications, and years of experience.",
-    slogan: "“Placeholder slogan or guiding philosophy.”",
-    tint: "from-amber-400/40 to-orange-700/40",
-    initials: "M3",
+    name: "Sunil Talwar",
+    role: "Founder",
+    qualifications: "FCA, M.Com (ABST) · 15 years experience",
+    slogan:
+      "“Behind every successful school is a leader who believes in the power of education and the touch of excellence.”",
+    image: "/leader-3.jpg",
   },
   {
-    name: "Management Head 4",
-    role: "Role",
-    qualifications: "Placeholder qualifications — degrees, certifications, and years of experience.",
-    slogan: "“Placeholder slogan or guiding philosophy.”",
-    tint: "from-emerald-500/40 to-teal-700/40",
-    initials: "M4",
+    name: "Rohit Wadhwa",
+    role: "H.O.D. — Curricular & Co-Curricular Activities",
+    qualifications: "M.Sc. (I.T.) Computer Science · 15 years experience",
+    slogan:
+      "“Great leaders build great schools by nurturing great teachers and motivated students.”",
+    image: "/leader-4.jpg",
   },
   {
-    name: "Management Head 5",
-    role: "Role",
-    qualifications: "Placeholder qualifications — degrees, certifications, and years of experience.",
-    slogan: "“Placeholder slogan or guiding philosophy.”",
-    tint: "from-rose-500/40 to-pink-700/40",
-    initials: "M5",
+    name: "Ms Anuradha Laroiya",
+    role: "Kindergarten Academic In-charge",
+    qualifications: "M.A. in Hindi · 20+ years experience",
+    slogan:
+      "“Education is not just about gaining knowledge but also about building values and self-confidence.”",
+    image: "/leader-5.jpg",
   },
 ];
 
 function FrontFace({ head }: { head: Head }) {
   return (
-    <div className="glass-panel relative flex h-full flex-col items-center justify-center overflow-hidden rounded-3xl p-6 text-center md:p-8">
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-80", head.tint)} />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.22),transparent_60%)]" />
-      <div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-white/30 bg-white/10 backdrop-blur-md md:h-24 md:w-24">
-        <span className="font-crest text-2xl text-white md:text-3xl">{head.initials}</span>
-      </div>
-      <div className="relative mt-5 md:mt-6">
-        <h3 className="font-crest text-lg text-white md:text-xl">{head.name}</h3>
-        <p className="mt-1 text-[0.65rem] uppercase tracking-[0.3em] text-white/70 md:text-xs">
+    <div className="glass-panel relative h-full overflow-hidden rounded-3xl">
+      {/* Photo fills the card. object-cover + object-position keeps the face in frame
+          regardless of card aspect ratio (mobile carousel vs. desktop 5-col row). */}
+      <Image
+        src={head.image}
+        alt={head.name}
+        fill
+        sizes="(max-width: 640px) 78vw, (max-width: 1024px) 38vw, 20vw"
+        style={{ objectPosition: head.objectPosition ?? "center 25%" }}
+        className="object-cover"
+      />
+
+      {/* Bottom-up gradient for text legibility — strongest at the very bottom. */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+
+      {/* Small "Tap" hint pinned top-right */}
+      <span className="absolute right-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[0.55rem] uppercase tracking-[0.3em] text-white/85 backdrop-blur-sm">
+        Tap
+      </span>
+
+      {/* Name + role pinned bottom-left, left-aligned */}
+      <div className="absolute inset-x-0 bottom-0 p-5 text-left md:p-6">
+        <h3 className="font-crest text-base leading-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] md:text-lg">
+          {head.name}
+        </h3>
+        <p className="mt-1.5 text-pretty text-[0.6rem] uppercase tracking-[0.28em] text-white/85 md:text-[0.65rem]">
           {head.role}
         </p>
       </div>
@@ -79,25 +101,41 @@ function FrontFace({ head }: { head: Head }) {
 
 function BackFace({ head }: { head: Head }) {
   return (
-    <div className="glass-panel relative flex h-full flex-col justify-between rounded-3xl p-6 text-left md:p-8">
+    <div className="glass-panel relative flex h-full flex-col justify-between rounded-3xl p-5 text-left md:p-6">
       <div>
+        {/* Mini avatar + identity header */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-            <User size={16} />
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-white/20 bg-white/10">
+            <Image
+              src={head.image}
+              alt=""
+              fill
+              sizes="40px"
+              style={{ objectPosition: head.objectPosition ?? "center 25%" }}
+              className="object-cover"
+            />
           </div>
-          <div>
-            <p className="font-crest text-base text-white">{head.name}</p>
-            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-white/55 md:text-[0.65rem]">
+          <div className="min-w-0">
+            <p className="font-crest truncate text-sm text-white md:text-base">
+              {head.name}
+            </p>
+            <p className="text-pretty text-[0.55rem] uppercase tracking-[0.28em] text-white/55 md:text-[0.6rem]">
               {head.role}
             </p>
           </div>
         </div>
-        <p className="mt-5 text-[0.65rem] uppercase tracking-[0.3em] text-white/55 md:mt-6 md:text-xs">
+
+        <p className="mt-4 text-[0.6rem] uppercase tracking-[0.3em] text-white/55 md:mt-5">
           Qualifications
         </p>
-        <p className="mt-2 text-xs text-white/85 md:text-sm">{head.qualifications}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-white/85 md:text-[0.8rem]">
+          {head.qualifications}
+        </p>
       </div>
-      <p className="text-xs italic leading-relaxed text-white/90 md:text-sm">{head.slogan}</p>
+
+      <p className="mt-4 text-pretty text-[0.72rem] italic leading-relaxed text-white/90 md:text-[0.82rem]">
+        {head.slogan}
+      </p>
     </div>
   );
 }
@@ -148,10 +186,8 @@ export function ManagementHeads() {
         viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
-          // Carousel by default (mobile + tablet): one column row that snaps + scrolls horizontally.
           "scrollbar-hide mt-12 grid snap-x snap-mandatory grid-flow-col gap-5 overflow-x-auto pb-4",
           "auto-cols-[78%] sm:auto-cols-[55%] md:auto-cols-[38%] md:gap-6",
-          // Desktop xl: lay out all 5 as an equal flex row, no scrolling.
           "xl:flex xl:auto-cols-auto xl:snap-none xl:gap-6 xl:overflow-visible",
         )}
       >
