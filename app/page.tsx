@@ -1,10 +1,13 @@
-import { listPublicPhotos } from "@/lib/listPublicPhotos";
 import Hero from "@/components/sections/Hero";
 import CoreValues from "@/components/sections/CoreValues";
 import GalleryMarquee from "@/components/sections/GalleryMarquee";
 import FacilitiesTeaser from "@/components/sections/FacilitiesTeaser";
 import ManagementHeads from "@/components/sections/ManagementHeads";
 import heroPhotos from "@/data/hero.json";
+import galleryPathsJson from "@/data/gallery.json";
+
+// Cast to string[] — JSON imports widen to never[] if the file is empty.
+const galleryPaths = galleryPathsJson as string[];
 
 const GALLERY_IDS = [
   "annual-day-2025",
@@ -15,11 +18,26 @@ const GALLERY_IDS = [
   "field-trips",
 ] as const;
 
-export default function Home() {
-  // First photo of each gallery folder becomes the marquee cover for that category.
-  const marqueeCovers: Record<string, string | undefined> = Object.fromEntries(
-    GALLERY_IDS.map((id) => [id, listPublicPhotos(`gallery/${id}`)[0]]),
+/**
+ * Build a cover map keyed by GALLERY_IDS from the auto-generated gallery.json.
+ * Pure data manipulation — no fs access, so Vercel's NFT can't trace public/
+ * into the serverless function.
+ */
+function buildMarqueeCovers(): Record<string, string | undefined> {
+  const firstByFolder = new Map<string, string>();
+  for (const p of galleryPaths) {
+    const parts = p.split("/").filter(Boolean); // ["gallery", "<folder>", "<file>"]
+    if (parts[0] !== "gallery" || parts.length < 3) continue;
+    const folder = parts[1];
+    if (!firstByFolder.has(folder)) firstByFolder.set(folder, p);
+  }
+  return Object.fromEntries(
+    GALLERY_IDS.map((id) => [id, firstByFolder.get(id)]),
   );
+}
+
+export default function Home() {
+  const marqueeCovers = buildMarqueeCovers();
 
   return (
     <div className="relative">

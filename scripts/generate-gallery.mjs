@@ -30,8 +30,9 @@ const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"]);
 
 /** Each entry: scan `publicSub` under /public, write to `outFile` under /data. */
 const MEDIA_SOURCES = [
-  { publicSub: "gallery", outFile: "gallery.json" },
-  { publicSub: "hero",    outFile: "hero.json"    },
+  { publicSub: "gallery",    outFile: "gallery.json"    },
+  { publicSub: "hero",       outFile: "hero.json"       },
+  { publicSub: "facilities", outFile: "facilities.json" },
 ];
 
 /** Walk a directory recursively and return all image file paths (absolute). */

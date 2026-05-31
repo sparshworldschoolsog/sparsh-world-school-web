@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import FacilitiesGrid from "@/components/sections/FacilitiesGrid";
-import { listPublicPhotos } from "@/lib/listPublicPhotos";
+import facilityPathsJson from "@/data/facilities.json";
+
+// Cast to string[] — the JSON is `[]` when no facility photos exist yet, which
+// TS narrows to `never[]`. The shape from the scanner is always string[].
+const facilityPaths = facilityPathsJson as string[];
 
 const FACILITY_IDS = [
   "science-labs",
@@ -17,11 +21,26 @@ export const metadata: Metadata = {
     "World-class infrastructure designed for curiosity — labs, library, sports complex, smart classrooms, and a secure transport system.",
 };
 
-export default function FacilitiesPage() {
-  // First photo found in /public/facilities/<id>/ becomes that card's cover.
-  const covers: Record<string, string | undefined> = Object.fromEntries(
-    FACILITY_IDS.map((id) => [id, listPublicPhotos(`facilities/${id}`)[0]]),
+/**
+ * Pick the first photo found inside /public/facilities/<id>/ for each facility.
+ * Data comes from the build-time JSON manifest — no runtime fs reads, so
+ * Vercel's NFT doesn't drag /public into the function bundle.
+ */
+function buildFacilityCovers(): Record<string, string | undefined> {
+  const firstByFolder = new Map<string, string>();
+  for (const p of facilityPaths) {
+    const parts = p.split("/").filter(Boolean); // ["facilities", "<folder>", "<file>"]
+    if (parts[0] !== "facilities" || parts.length < 3) continue;
+    const folder = parts[1];
+    if (!firstByFolder.has(folder)) firstByFolder.set(folder, p);
+  }
+  return Object.fromEntries(
+    FACILITY_IDS.map((id) => [id, firstByFolder.get(id)]),
   );
+}
+
+export default function FacilitiesPage() {
+  const covers = buildFacilityCovers();
 
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-24 pt-28 md:px-8 md:pb-32 md:pt-36">
