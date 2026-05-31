@@ -31,11 +31,11 @@ const HEADS: Head[] = [
     image: "/leader-1.jpg",
   },
   {
-    name: "Ms Shalu Raj",
+    name: "Ms Shalu Raj Talwar",
     role: "Senior Academic In-charge",
     qualifications: "Double M.A. in Sociology & Hindi, B.Ed. · 10 years experience",
     slogan:
-      "“A leader is one who knows the way, who goes the way, and shows the way.”",
+      "“Leadership is not about managing a school; it's about shaping a generation.”",
     image: "/leader-2.jpg",
   },
   {
