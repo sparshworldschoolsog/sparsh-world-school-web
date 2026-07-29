@@ -111,6 +111,7 @@ export function ChatBot() {
           });
         }
       }
+      setStatus("idle");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -120,13 +121,13 @@ export function ChatBot() {
         if (next[botIdx]) {
           next[botIdx] = {
             role: "assistant",
-            content: "Sorry, I couldn't process that. Please try again or contact the school directly.",
+            content: msg,
           };
         }
         return next;
       });
+      setStatus("error");
     } finally {
-      setStatus("idle");
       setStreamingId(null);
       abortRef.current = null;
     }
