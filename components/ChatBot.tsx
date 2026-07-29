@@ -226,10 +226,10 @@ export function ChatBot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="glass-panel fixed bottom-24 right-5 z-[60] flex h-[32rem] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-3xl text-white"
+            className="fixed bottom-24 right-5 z-[60] flex h-[32rem] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/85 text-white shadow-xl backdrop-blur-2xl"
           >
-            <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+            <header className="flex items-center gap-3 border-b border-white/15 bg-slate-900/60 px-4 py-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
                 <Bot size={16} />
               </div>
               <div className="flex flex-col leading-tight">
@@ -242,7 +242,7 @@ export function ChatBot() {
                 type="button"
                 onClick={openContactForm}
                 disabled={status === "form" || status === "submitting"}
-                className="ml-auto flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[0.6rem] font-medium text-white/80 transition hover:bg-white/20 disabled:opacity-50"
+                className="ml-auto flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[0.6rem] font-medium text-white/85 transition hover:bg-white/25 disabled:opacity-50"
               >
                 <Headphones size={11} />
                 Talk to human
@@ -267,19 +267,19 @@ export function ChatBot() {
                   <div
                     className={cn(
                       "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                      m.role === "user" ? "bg-blue-500/30" : "bg-white/10",
+                      m.role === "user" ? "bg-blue-600/50" : "bg-white/15",
                     )}
                   >
                     {m.role === "user" ? <User size={12} /> : <Bot size={12} />}
                   </div>
                   <div
                     className={cn(
-                      "rounded-2xl px-3 py-2",
+                      "rounded-2xl px-3 py-2 leading-relaxed",
                       m.role === "user"
-                        ? "bg-blue-500/40 text-white"
+                        ? "bg-blue-600/60 text-white"
                         : streamingId === i
-                          ? "bg-white/10 text-white/90"
-                          : "bg-white/10 text-white/90",
+                          ? "bg-slate-800/80 text-white/95"
+                          : "bg-slate-800/80 text-white/95",
                     )}
                   >
                     {m.content}
@@ -294,7 +294,7 @@ export function ChatBot() {
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-white/80 max-w-[80%]"
+                  className="flex items-center gap-2 rounded-2xl bg-slate-800/80 px-3 py-2 text-white/90 max-w-[80%]"
                 >
                   <Loader2 size={14} className="animate-spin" />
                   <span className="text-xs">Thinking...</span>
@@ -307,7 +307,7 @@ export function ChatBot() {
                   animate={{ opacity: 1, y: 0 }}
                   onSubmit={submitForm}
                   noValidate
-                  className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm"
+                  className="space-y-2 rounded-2xl border border-white/15 bg-slate-800/70 p-3"
                 >
                   <Field
                     placeholder="Your name"
@@ -349,7 +349,7 @@ export function ChatBot() {
                   <button
                     type="submit"
                     disabled={status === "submitting"}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/25 disabled:cursor-wait disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-700/80 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-600/80 disabled:cursor-wait disabled:opacity-60"
                   >
                     {status === "submitting" ? (
                       <>
@@ -373,7 +373,7 @@ export function ChatBot() {
             </div>
 
             {status !== "success" && status !== "form" && (
-              <div className="border-t border-white/10 px-4 py-3">
+              <div className="border-t border-white/15 bg-slate-900/60 px-4 py-3">
                 <form onSubmit={sendMessage} className="flex items-center gap-2">
                   <input
                     ref={inputRef}
@@ -382,12 +382,12 @@ export function ChatBot() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask me anything..."
                     disabled={status === "loading" || status === "streaming"}
-                    className="flex-1 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm text-white placeholder-white/40 outline-none transition focus:border-white/30 focus:bg-white/[0.09] disabled:opacity-50"
+                    className="flex-1 rounded-xl border border-white/15 bg-slate-800/60 px-3 py-2 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/30 focus:bg-slate-700/70 disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || status === "loading" || status === "streaming"}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-30"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-700/80 text-white transition hover:bg-slate-600/80 disabled:opacity-30"
                   >
                     <Send size={14} />
                   </button>
@@ -396,11 +396,11 @@ export function ChatBot() {
             )}
 
             {status === "success" && (
-              <div className="border-t border-white/10 px-4 py-3">
+              <div className="border-t border-white/15 bg-slate-900/60 px-4 py-3">
                 <button
                   type="button"
                   onClick={reset}
-                  className="w-full rounded-xl bg-white/10 py-2 text-xs text-white/80 transition hover:bg-white/20"
+                  className="w-full rounded-xl bg-slate-700/80 py-2 text-xs text-white/85 transition hover:bg-slate-600/80"
                 >
                   Ask something else
                 </button>
@@ -429,7 +429,7 @@ function Field({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm backdrop-blur-sm transition focus-within:border-white/30 focus-within:bg-white/[0.09]">
+    <label className="flex items-center gap-2 rounded-xl border border-white/15 bg-slate-700/50 px-3 py-2 text-sm transition focus-within:border-white/30 focus-within:bg-slate-700/80">
       <input
         type={type}
         value={value}
@@ -437,7 +437,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         disabled={disabled}
-        className="flex-1 bg-transparent text-white placeholder-white/40 outline-none disabled:opacity-60"
+        className="flex-1 bg-transparent text-white placeholder-white/50 outline-none disabled:opacity-60"
       />
     </label>
   );
@@ -455,14 +455,14 @@ function TextAreaField({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm backdrop-blur-sm transition focus-within:border-white/30 focus-within:bg-white/[0.09]">
+    <label className="flex items-start gap-2 rounded-xl border border-white/15 bg-slate-700/50 px-3 py-2 text-sm transition focus-within:border-white/30 focus-within:bg-slate-700/80">
       <textarea
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         rows={2}
-        className="flex-1 resize-none bg-transparent text-white placeholder-white/40 outline-none disabled:opacity-60"
+        className="flex-1 resize-none bg-transparent text-white placeholder-white/50 outline-none disabled:opacity-60"
       />
     </label>
   );
