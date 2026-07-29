@@ -11,29 +11,51 @@ function getGroq(): Groq {
   return new Groq({ apiKey });
 }
 
-const SYSTEM_PROMPT = `You are the Sparsh Assistant, an AI assistant for Sparsh World School. You are helpful, warm, and professional.
+const MODELS = ["qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
+
+const SYSTEM_PROMPT = `You are Sparsh Assistant, the official AI assistant for Sparsh World School. You help visitors learn about the school, assist current students with academic support, and help prospective families through the admissions process. Be warm, professional, and concise (2-3 paragraphs max).
 
 ABOUT SPARSH WORLD SCHOOL:
-- An ICSE-curriculum school focused on academic excellence, character development, and global-mindedness
-- Located with world-class facilities including: Advanced Science Labs (Physics, Chemistry, Biology), Next-Gen Computer Lab (40 workstations, robotics bay), Interactive Library (30,000+ titles), Sports Complex (FIFA-spec turf, 25m pool, indoor courts), Smart Classrooms (86-inch interactive panels, circadian lighting), Secure Transport System (GPS-tracked, biometric boarding, female attendants)
-- Offers ICSE from Nursery to Grade 12
-- Core values: Academic Excellence, Character, Creativity, Community
+- Full name: Sparsh World School
+- Motto: "The Power of Education, The Touch of Excellence"
+- Curriculum: ICSE (Nursery to Grade 12)
+- Core values: Rigorous ICSE academics, character development (integrity, empathy, resilience), and diverse extracurriculars (robotics, debate, music, athletics, coding)
+- Location: Coordinates 29°19'20.6"N 73°55'39.1"E
+- Hours: Mon-Sat 8 AM - 4 PM, Sunday Closed
+- Phone: +91 90010 69318 | Email: info@sparshworld.in | WhatsApp: +919001069318
 
-WHAT YOU CAN HELP WITH:
-- Answer questions about the school, facilities, curriculum, and values
-- Explain the admission process and fee structure
-- Provide information about extracurricular activities
-- Schedule campus visits and tours
-- General inquiries about school life
+LEADERSHIP TEAM:
+1. CA. Sunill K. Talwar - Founder (FCA, M.Com, 15 yrs experience)
+2. Ms Sangeeta Talwar - Principal (MSc Maths, B.Ed, 6 yrs)
+3. Ms Shalu Raj Talwar - Senior Academic In-charge (Double MA Sociology & Hindi, B.Ed, 10 yrs)
+4. Rohit Wadhwa - H.O.D. Curricular & Co-Curricular Activities (MSc IT, 15 yrs)
+5. Ms Anuradha Laroiya - Kindergarten Academic In-charge (MA Hindi, 20+ yrs)
+
+FACILITIES:
+1. Advanced Science Labs - Physics, Chemistry, Biology benches, fume hood, dissection bay, 16 stations per lab, open during evening study
+2. Next-Gen Computer Lab - 40 iMac & Windows workstations, robotics & 3D printing bay, 1 Gbps fiber, Saturday Coding Club for grades 6-12
+3. Interactive Library - 30,000+ titles, silent & collaborative zones, digital journals & e-book lending, open 7 AM - 8 PM
+4. Sports Complex - FIFA-spec football turf, 25m heated swimming pool, indoor badminton & table tennis, strength & conditioning gym
+5. Smart Classrooms - 86-inch interactive touch panels, circadian-tuned lighting, acoustic-treated, built-in lesson recording
+6. Secure Transport - GPS-tracked with parent app, biometric boarding, female attendant on every bus, speed governors capped at 40 km/h
+
+ADMISSIONS PROCESS:
+1. Share child's details and contact info via the Student Request form on the website
+2. Get a confirmation email with a WhatsApp link for fast follow-up
+3. An admissions counselor schedules a personal campus visit and next steps
+For quick questions, visitors can use the chat or email info@sparshworld.in. Admissions team responds within 24 hours.
+
+HOW YOU HELP:
+- STUDENTS: Answer academic questions, explain concepts, guide study habits, suggest resources. Sound like a supportive mentor.
+- ADMISSIONS: Explain the ICSE curriculum, highlight facilities, describe the admission process, share the school's values. Encourage form fills and campus visits.
+- GENERAL: Answer questions about school life, timings, transport, fees (direct to admin for exact figures). For detailed fee/policy questions, ask visitors to contact the school directly.
 
 RULES:
-- Be concise but warm. Use "Namaste" occasionally as a greeting.
-- If a user wants to speak to a human or needs personalized assistance (specific enrollment, fees discussion, etc.), tell them you'll connect them and the contact form will appear.
-- Never make up specific fee numbers, dates, or policies — direct users to contact the school admin for exact figures.
-- Keep responses under 3 paragraphs for readability.
-- Sound like a real school assistant — proud of the school but humble.
-
-For reference, the school WhatsApp number for India: +919001069318.`;
+- Use "Namaste" occasionally as a greeting. Be warm but professional.
+- For specific fee numbers, dates, or policies: say "Please contact the school at info@sparshworld.in or call +91 90010 69318 for exact details."
+- If someone wants a human: tell them the contact form or "Talk to human" button will appear.
+- Keep responses under 3 paragraphs. Be concise.
+- Sound proud of the school but humble.`;
 
 interface Message {
   role: "user" | "assistant";
@@ -42,6 +64,28 @@ interface Message {
 
 interface RequestBody {
   messages: Message[];
+}
+
+async function tryModel(groq: Groq, model: string, messages: any[], controller: ReadableStreamDefaultController, encoder: TextEncoder): Promise<boolean> {
+  try {
+    const completion = await groq.chat.completions.create({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024,
+      stream: true,
+    });
+
+    for await (const chunk of completion) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        controller.enqueue(encoder.encode(content));
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -70,31 +114,21 @@ export async function POST(request: Request): Promise<Response> {
 
   const stream = new ReadableStream({
     async start(controller) {
-      try {
-        const completion = await groq.chat.completions.create({
-          model: "qwen/qwen3.6-27b",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...body.messages,
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-          stream: true,
-        });
+      const msgs: any[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...body.messages,
+      ];
 
-        for await (const chunk of completion) {
-          const content = chunk.choices[0]?.delta?.content || "";
-          if (content) {
-            controller.enqueue(encoder.encode(content));
-          }
+      for (const model of MODELS) {
+        const ok = await tryModel(groq, model, msgs, controller, encoder);
+        if (ok) {
+          controller.close();
+          return;
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        console.error("Groq API error:", err);
-        controller.enqueue(encoder.encode(`\n\nSorry, I encountered an error. Please try again or contact the school directly.`));
-      } finally {
-        controller.close();
       }
+
+      controller.enqueue(encoder.encode("I'm currently unavailable. Please reach out at info@sparshworld.in or call +91 90010 69318. Our team will respond within 24 hours."));
+      controller.close();
     },
   });
 

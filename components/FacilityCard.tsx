@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Info, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const isSvg = (src: string) => src.toLowerCase().endsWith(".svg");
+
 export interface FacilityCardData {
   id: string;
   title: string;
@@ -56,7 +58,7 @@ export function FacilityCard({ data }: { data: FacilityCardData }) {
       >
         {/* FRONT */}
         <div className="glass-panel absolute inset-0 overflow-hidden rounded-3xl [backface-visibility:hidden]">
-          {data.src ? (
+          {data.src && !isSvg(data.src) ? (
             <>
               <Image
                 src={data.src}
@@ -71,6 +73,16 @@ export function FacilityCard({ data }: { data: FacilityCardData }) {
             <>
               <div className={cn("absolute inset-0 bg-gradient-to-br opacity-90", data.tint)} />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_15%,rgba(255,255,255,0.22),transparent_60%)]" />
+              {data.src && isSvg(data.src) && (
+                <Image
+                  src={data.src}
+                  alt={data.title}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-contain p-8"
+                  unoptimized
+                />
+              )}
             </>
           )}
 
