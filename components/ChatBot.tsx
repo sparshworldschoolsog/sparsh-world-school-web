@@ -25,7 +25,7 @@ export function ChatBot() {
     {
       role: "assistant",
       content:
-        "Namaste! I'm the Sparsh Assistant. Ask me anything about the school — admissions, facilities, curriculum, or campus life. I'm here to help!",
+        "Namaste! 👋 I'm your Sparsh Assistant — part study buddy, part admissions guide. 📚 Need help with a subject, homework tips, or exam prep? Just ask. 🎓 Want to know about ICSE admissions, fee structure, or campus facilities? I'll walk you through everything. What can I help you with today?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -172,7 +172,7 @@ export function ChatBot() {
         {
           role: "assistant",
           content:
-            "Thanks! We've received your details and sent a confirmation to your email. Our team will be in touch within 24 hours. Is there anything else I can help you with?",
+            "Thanks! We've received your details and sent a confirmation to your email. Our team will be in touch within 24 hours. Meanwhile, feel free to ask me about studies, homework, or anything about Sparsh!",
         },
       ]);
     } catch (err) {
@@ -189,7 +189,7 @@ export function ChatBot() {
     setMessages([
       {
         role: "assistant",
-        content: "How else can I help you? Ask me anything about Sparsh World School.",
+        content: "How else can I help? Ask me about studies, homework, exam prep, or admissions — I'm here for you.",
       },
     ]);
     setStreamingId(null);
