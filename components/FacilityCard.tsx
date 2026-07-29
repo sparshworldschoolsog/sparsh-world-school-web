@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Info, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const isSvg = (src: string) => src.toLowerCase().endsWith(".svg");
+
 export interface FacilityCardData {
   id: string;
   title: string;
@@ -64,6 +66,7 @@ export function FacilityCard({ data }: { data: FacilityCardData }) {
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 className="object-cover"
+                unoptimized={isSvg(data.src)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
             </>

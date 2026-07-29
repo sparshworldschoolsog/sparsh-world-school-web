@@ -1,57 +1,42 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   MessageCircle,
   X,
   Send,
-  GraduationCap,
-  IndianRupee,
-  UserRound,
-  Mail,
-  Phone,
-  MessageSquare,
   Loader2,
   AlertCircle,
   Headphones,
+  Bot,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Topic = "admissions" | "fees" | "contact_human";
-type Message = { from: "bot" | "user"; text: string };
-type Status = "idle" | "submitting" | "success" | "error";
+type Message = { role: "user" | "assistant"; content: string };
+type Status = "idle" | "loading" | "streaming" | "form" | "submitting" | "success" | "error";
 
 const OPEN_EVENT = "sparsh:open-chat";
 
-const TOPIC_PROMPTS: Record<Topic, { user: string; bot: string }> = {
-  admissions: {
-    user: "Admissions",
-    bot: "Wonderful. Share your name, email, and what you'd like to know — our admissions team will reply within 24 hours.",
-  },
-  fees: {
-    user: "Fees",
-    bot: "Happy to help. Drop your name, email, and a quick note and we'll send the latest fee structure to your inbox.",
-  },
-  contact_human: {
-    user: "Talk to a human",
-    bot: "Of course. Leave your details below and someone from our team will reach out personally.",
-  },
-};
-
 export function ChatBot() {
   const [open, setOpen] = useState(false);
-  const [topic, setTopic] = useState<Topic | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
-      from: "bot",
-      text: "Namaste! I'm the Sparsh Assistant. How can I help you today?",
+      role: "assistant",
+      content:
+        "Namaste! I'm the Sparsh Assistant. Ask me anything about the school — admissions, facilities, curriculum, or campus life. I'm here to help!",
     },
   ]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [input, setInput] = useState("");
+  const [streamingId, setStreamingId] = useState<number | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const handler = () => setOpen(true);
@@ -64,20 +49,104 @@ export function ChatBot() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, topic, status]);
+  }, [messages, status]);
 
-  const pickTopic = (t: Topic) => {
-    setTopic(t);
-    setMessages((m) => [
-      ...m,
-      { from: "user", text: TOPIC_PROMPTS[t].user },
-      { from: "bot", text: TOPIC_PROMPTS[t].bot },
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  async function sendMessage(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || status === "loading" || status === "streaming") return;
+    setInput("");
+
+    const userMsg: Message = { role: "user", content: text };
+    const botIdx = messages.length + 1;
+    const updated: Message[] = [...messages, userMsg, { role: "assistant", content: "" }];
+    setMessages(updated);
+    setStreamingId(botIdx);
+    setStatus("loading");
+    setError(null);
+
+    const history: { role: "user" | "assistant"; content: string }[] = updated.slice(0, -1).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error ?? "Failed to get response");
+      }
+
+      setStatus("streaming");
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let done = false;
+      let accumulated = "";
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          accumulated += decoder.decode(value, { stream: true });
+          setMessages((prev) => {
+            const next = [...prev];
+            if (next[botIdx]) next[botIdx] = { ...next[botIdx], content: accumulated };
+            return next;
+          });
+        }
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      setMessages((prev) => {
+        const next = [...prev];
+        if (next[botIdx]) {
+          next[botIdx] = {
+            role: "assistant",
+            content: "Sorry, I couldn't process that. Please try again or contact the school directly.",
+          };
+        }
+        return next;
+      });
+    } finally {
+      setStatus("idle");
+      setStreamingId(null);
+      abortRef.current = null;
+    }
+  }
+
+  const openContactForm = () => {
+    setStatus("form");
+    setForm({ name: "", email: "", phone: "", message: "" });
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content:
+          "Of course! Please share your details below and our team will reach out to you personally.",
+      },
     ]);
   };
 
-  async function submit(e: FormEvent<HTMLFormElement>) {
+  async function submitForm(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!topic) return;
     setStatus("submitting");
     setError(null);
     try {
@@ -89,35 +158,40 @@ export function ChatBot() {
           name: form.name,
           email: form.email,
           phone: form.phone,
-          message: form.message,
-          topic,
+          message: form.message || "Contact request via AI chat",
+          topic: "contact_human",
         }),
       });
       const json: { ok?: boolean; error?: string } = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Submission failed");
 
       setStatus("success");
-      setMessages((m) => [
-        ...m,
-        { from: "user", text: `${form.name} · ${form.email} · ${form.phone}` },
+      setMessages((prev) => [
+        ...prev,
         {
-          from: "bot",
-          text:
-            "Thanks! We've received your details and sent a confirmation to your email. We'll be in touch soon.",
+          role: "assistant",
+          content:
+            "Thanks! We've received your details and sent a confirmation to your email. Our team will be in touch within 24 hours. Is there anything else I can help you with?",
         },
       ]);
     } catch (err) {
-      setStatus("error");
+      setStatus("form");
       setError(err instanceof Error ? err.message : "Submission failed");
     }
   }
 
   const reset = () => {
-    setTopic(null);
     setStatus("idle");
     setError(null);
+    setInput("");
     setForm({ name: "", email: "", phone: "", message: "" });
-    setMessages([{ from: "bot", text: "How else can I help you?" }]);
+    setMessages([
+      {
+        role: "assistant",
+        content: "How else can I help you? Ask me anything about Sparsh World School.",
+      },
+    ]);
+    setStreamingId(null);
   };
 
   return (
@@ -155,19 +229,28 @@ export function ChatBot() {
           >
             <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
-                <MessageCircle size={16} />
+                <Bot size={16} />
               </div>
               <div className="flex flex-col leading-tight">
                 <span className="text-sm font-semibold">Sparsh Assistant</span>
                 <span className="text-[0.65rem] text-white/60">
-                  Online · usually replies instantly
+                  {status === "streaming" ? "Typing..." : "Online · AI-powered"}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={openContactForm}
+                disabled={status === "form" || status === "submitting"}
+                className="ml-auto flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[0.6rem] font-medium text-white/80 transition hover:bg-white/20 disabled:opacity-50"
+              >
+                <Headphones size={11} />
+                Talk to human
+              </button>
             </header>
 
             <div
               ref={scrollRef}
-              className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm"
+              className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm scrollbar-hide"
             >
               {messages.map((m, i) => (
                 <motion.div
@@ -176,95 +259,86 @@ export function ChatBot() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
                   className={cn(
-                    "max-w-[80%] rounded-2xl px-3 py-2",
-                    m.from === "bot"
-                      ? "bg-white/10 text-white/90"
-                      : "ml-auto bg-blue-500/40 text-white",
+                    "flex items-start gap-2 max-w-[90%]",
+                    m.role === "user" ? "ml-auto flex-row-reverse" : "flex-row",
                   )}
                 >
-                  {m.text}
+                  <div
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                      m.role === "user" ? "bg-blue-500/30" : "bg-white/10",
+                    )}
+                  >
+                    {m.role === "user" ? <User size={12} /> : <Bot size={12} />}
+                  </div>
+                  <div
+                    className={cn(
+                      "rounded-2xl px-3 py-2",
+                      m.role === "user"
+                        ? "bg-blue-500/40 text-white"
+                        : streamingId === i
+                          ? "bg-white/10 text-white/90"
+                          : "bg-white/10 text-white/90",
+                    )}
+                  >
+                    {m.content}
+                    {streamingId === i && (
+                      <span className="inline-block w-1.5 animate-pulse bg-white/70 ml-0.5 rounded-full h-4 align-text-bottom" />
+                    )}
+                  </div>
                 </motion.div>
               ))}
 
-              {status === "submitting" && (
+              {status === "loading" && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex max-w-[80%] items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-white/80"
+                  className="flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 text-white/80 max-w-[80%]"
                 >
                   <Loader2 size={14} className="animate-spin" />
-                  <span className="text-xs">Sending your details…</span>
+                  <span className="text-xs">Thinking...</span>
                 </motion.div>
               )}
 
-              {!topic && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <TopicChip
-                    icon={<GraduationCap size={14} />}
-                    label="Admissions"
-                    onClick={() => pickTopic("admissions")}
-                  />
-                  <TopicChip
-                    icon={<IndianRupee size={14} />}
-                    label="Fees"
-                    onClick={() => pickTopic("fees")}
-                  />
-                  <TopicChip
-                    icon={<Headphones size={14} />}
-                    label="Talk to a human"
-                    onClick={() => pickTopic("contact_human")}
-                  />
-                </div>
-              )}
-
-              {topic && status !== "success" && (
+              {(status === "form" || status === "submitting") && (
                 <motion.form
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
-                  onSubmit={submit}
+                  onSubmit={submitForm}
                   noValidate
-                  className="mt-3 space-y-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm"
+                  className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-sm"
                 >
                   <Field
-                    icon={<UserRound size={14} />}
                     placeholder="Your name"
                     value={form.name}
                     onChange={(v) => setForm({ ...form, name: v })}
-                    autoComplete="name"
                     required
                     disabled={status === "submitting"}
                   />
                   <Field
-                    icon={<Mail size={14} />}
                     placeholder="Email address"
                     type="email"
                     value={form.email}
                     onChange={(v) => setForm({ ...form, email: v })}
-                    autoComplete="email"
                     required
                     disabled={status === "submitting"}
                   />
                   <Field
-                    icon={<Phone size={14} />}
                     placeholder="Phone number"
                     type="tel"
                     value={form.phone}
                     onChange={(v) => setForm({ ...form, phone: v })}
-                    autoComplete="tel"
                     required
                     disabled={status === "submitting"}
                   />
-                  <TextArea
-                    icon={<MessageSquare size={14} />}
-                    placeholder="A brief message…"
+                  <TextAreaField
+                    placeholder="A brief message (optional)..."
                     value={form.message}
                     onChange={(v) => setForm({ ...form, message: v })}
-                    required
                     disabled={status === "submitting"}
                   />
 
-                  {status === "error" && error && (
+                  {error && (
                     <div className="flex items-start gap-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100">
                       <AlertCircle size={12} className="mt-0.5 shrink-0" />
                       <span>{error}</span>
@@ -278,7 +352,7 @@ export function ChatBot() {
                   >
                     {status === "submitting" ? (
                       <>
-                        <Loader2 size={14} className="animate-spin" /> Sending…
+                        <Loader2 size={14} className="animate-spin" /> Sending...
                       </>
                     ) : (
                       <>
@@ -289,16 +363,48 @@ export function ChatBot() {
                 </motion.form>
               )}
 
-              {status === "success" && (
+              {status === "error" && error && (
+                <div className="flex items-start gap-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-100">
+                  <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
+
+            {status !== "success" && status !== "form" && (
+              <div className="border-t border-white/10 px-4 py-3">
+                <form onSubmit={sendMessage} className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask me anything..."
+                    disabled={status === "loading" || status === "streaming"}
+                    className="flex-1 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm text-white placeholder-white/40 outline-none transition focus:border-white/30 focus:bg-white/[0.09] disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || status === "loading" || status === "streaming"}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-30"
+                  >
+                    <Send size={14} />
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {status === "success" && (
+              <div className="border-t border-white/10 px-4 py-3">
                 <button
                   type="button"
                   onClick={reset}
-                  className="mt-2 text-xs text-white/60 underline-offset-2 hover:text-white hover:underline"
+                  className="w-full rounded-xl bg-white/10 py-2 text-xs text-white/80 transition hover:bg-white/20"
                 >
                   Ask something else
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -306,50 +412,23 @@ export function ChatBot() {
   );
 }
 
-function TopicChip({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/90 transition hover:bg-white/15"
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-interface FieldBaseProps {
-  icon?: ReactNode;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-  disabled?: boolean;
-  autoComplete?: string;
-}
-
 function Field({
-  icon,
   placeholder,
   value,
   onChange,
   type = "text",
   required,
   disabled,
-  autoComplete,
-}: FieldBaseProps & { type?: string }) {
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <label className="flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm backdrop-blur-sm transition focus-within:border-white/30 focus-within:bg-white/[0.09]">
-      {icon && <span className="text-white/60">{icon}</span>}
       <input
         type={type}
         value={value}
@@ -357,31 +436,31 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         disabled={disabled}
-        autoComplete={autoComplete}
         className="flex-1 bg-transparent text-white placeholder-white/40 outline-none disabled:opacity-60"
       />
     </label>
   );
 }
 
-function TextArea({
-  icon,
+function TextAreaField({
   placeholder,
   value,
   onChange,
-  required,
   disabled,
-}: FieldBaseProps) {
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   return (
     <label className="flex items-start gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-sm backdrop-blur-sm transition focus-within:border-white/30 focus-within:bg-white/[0.09]">
-      {icon && <span className="mt-1 text-white/60">{icon}</span>}
       <textarea
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        required={required}
         disabled={disabled}
-        rows={3}
+        rows={2}
         className="flex-1 resize-none bg-transparent text-white placeholder-white/40 outline-none disabled:opacity-60"
       />
     </label>
