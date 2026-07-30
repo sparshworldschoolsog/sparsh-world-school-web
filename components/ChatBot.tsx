@@ -29,7 +29,6 @@ export function ChatBot() {
     },
   ]);
   const [input, setInput] = useState("");
-  const [streamingId, setStreamingId] = useState<number | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +64,6 @@ export function ChatBot() {
     const botIdx = messages.length + 1;
     const updated: Message[] = [...messages, userMsg, { role: "assistant", content: "" }];
     setMessages(updated);
-    setStreamingId(botIdx);
     setStatus("loading");
     setError(null);
 
@@ -90,8 +88,6 @@ export function ChatBot() {
         throw new Error(errData.error ?? "Failed to get response");
       }
 
-      setStatus("streaming");
-
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response stream");
 
@@ -104,13 +100,14 @@ export function ChatBot() {
         done = streamDone;
         if (value) {
           accumulated += decoder.decode(value, { stream: true });
-          setMessages((prev) => {
-            const next = [...prev];
-            if (next[botIdx]) next[botIdx] = { ...next[botIdx], content: accumulated };
-            return next;
-          });
         }
       }
+
+      setMessages((prev) => {
+        const next = [...prev];
+        if (next[botIdx]) next[botIdx] = { ...next[botIdx], content: accumulated };
+        return next;
+      });
       setStatus("idle");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -128,7 +125,6 @@ export function ChatBot() {
       });
       setStatus("error");
     } finally {
-      setStreamingId(null);
       abortRef.current = null;
     }
   }
@@ -192,7 +188,6 @@ export function ChatBot() {
         content: "How else can I help? Ask me about studies, homework, exam prep, or admissions — I'm here for you.",
       },
     ]);
-    setStreamingId(null);
   };
 
   return (
@@ -277,29 +272,15 @@ export function ChatBot() {
                       "rounded-2xl px-3 py-2 leading-relaxed",
                       m.role === "user"
                         ? "bg-blue-600/60 text-white"
-                        : streamingId === i
-                          ? "bg-slate-800/80 text-white/95"
-                          : "bg-slate-800/80 text-white/95",
+                        : "bg-slate-800/80 text-white/95",
                     )}
                   >
                     {m.content}
-                    {streamingId === i && (
-                      <span className="inline-block w-1.5 animate-pulse bg-white/70 ml-0.5 rounded-full h-4 align-text-bottom" />
-                    )}
                   </div>
                 </motion.div>
               ))}
 
-              {status === "loading" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 rounded-2xl bg-slate-800/80 px-3 py-2 text-white/90 max-w-[80%]"
-                >
-                  <Loader2 size={14} className="animate-spin" />
-                  <span className="text-xs">Thinking...</span>
-                </motion.div>
-              )}
+
 
               {(status === "form" || status === "submitting") && (
                 <motion.form
